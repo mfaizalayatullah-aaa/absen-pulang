@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Absen Pulang Sekolah</title>
+    <title>Absen Pulang Sekolah - QR Scanner</title>
+    <!-- Library QR Code / Barcode Scanner -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #f0f2f5; margin: 0; padding: 8px; }
@@ -15,7 +17,80 @@
         select, input { width: 100%; padding: 7px 9px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; }
         select:last-child, input:last-child { margin-bottom: 0; }
         
-        /* ITEM BARIS SISWA LEBIH EFEKTIF & OPTIMAL DI HP */
+        /* TOMBOL SCANNER KAMERA */
+        .btn-scan-trigger {
+            width: 100%;
+            padding: 9px;
+            background: #5856d6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.88rem;
+            cursor: pointer;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* CONTAINER KAMERA SCANNER */
+        #scanner-container {
+            display: none;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        #reader { width: 100%; }
+        .btn-close-scan {
+            background: #ff3b30;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            margin: 8px 0;
+            cursor: pointer;
+        }
+
+        /* MODAL POPUP SETELAH SCAN HASILNYA */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+        }
+        .modal-card {
+            background: white;
+            width: 100%;
+            max-width: 310px;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .modal-card h3 { margin: 0 0 4px 0; font-size: 1.05rem; color: #1c1e21; }
+        .modal-card p { margin: 0 0 12px 0; font-size: 0.82rem; color: #666; }
+        .modal-actions { display: flex; gap: 6px; flex-direction: column; }
+        .btn-modal {
+            padding: 9px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            color: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        /* ITEM BARIS SISWA COMPACT */
         .student-item { 
             background: white; 
             padding: 8px 10px; 
@@ -27,40 +102,16 @@
             justify-content: space-between;
             gap: 6px;
         }
-        
-        /* AREA NAMA SISWA (MEMINIMALISIR TERPOTONG) */
-        .student-info { 
-            flex: 1; 
-            min-width: 0; 
-            padding-right: 4px;
-        }
-        .student-name { 
-            font-weight: bold; 
-            font-size: 0.88rem; 
-            color: #1c1e21; 
-            line-height: 1.25;
-            word-wrap: break-word; /* Jika nama sangat panjang, bisa lanjut ke bawah tanpa kepotong */
-        }
+        .student-info { flex: 1; min-width: 0; padding-right: 4px; }
+        .student-name { font-weight: bold; font-size: 0.88rem; color: #1c1e21; line-height: 1.25; word-wrap: break-word; }
         .class-tag { color: #007aff; font-weight: bold; margin-right: 3px; }
         
         .badge { display: inline-block; padding: 1px 5px; border-radius: 4px; font-size: 0.68rem; font-weight: bold; margin-top: 2px; }
         .badge-belum { background: #ffe3e3; color: #d63031; }
         .badge-sudah { background: #e3faf2; color: #08a10b; }
 
-        /* AREA TOMBOL AKSI COMPACT */
         .btn-group { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
-        .btn { 
-            padding: 5px 7px; 
-            border: none; 
-            border-radius: 4px; 
-            font-weight: bold; 
-            color: white; 
-            cursor: pointer; 
-            font-size: 0.72rem; 
-            text-align: center; 
-            text-decoration: none; 
-            line-height: 1;
-        }
+        .btn { padding: 5px 7px; border: none; border-radius: 4px; font-weight: bold; color: white; cursor: pointer; font-size: 0.72rem; text-align: center; text-decoration: none; line-height: 1; }
         .btn-jemput { background: #34c759; }
         .btn-sendiri { background: #007aff; }
         .btn-wa { background: #25d366; padding: 5px 7px; font-size: 0.85rem; }
@@ -76,19 +127,46 @@
     </div>
 
     <div class="card-filter">
+        <!-- TOMBOL KAMERA SCANNER -->
+        <button class="btn-scan-trigger" onclick="toggleScanner()">
+            📷 Scan QR / Barcode Siswa
+        </button>
+
+        <!-- CONTAINER CAMERA READ -->
+        <div id="scanner-container">
+            <div id="reader"></div>
+            <button class="btn-close-scan" onclick="stopScanner()">Tutup Kamera</button>
+        </div>
+
+        <!-- SEARCH MANUAL & DROPDOWN -->
         <select id="filterKelas" onchange="renderSiswa()">
             <option value="Semua">-- Semua Kelas --</option>
         </select>
-        <input type="text" id="searchNama" onkeyup="renderSiswa()" placeholder="🔍 Cari nama anak...">
+        <input type="text" id="searchNama" onkeyup="renderSiswa()" placeholder="🔍 Cari nama anak manual...">
     </div>
 
     <div id="loading">⏳ Memuat data siswa...</div>
     <div id="containerSiswa"></div>
 
+    <!-- MODAL POPUP SAAT KETEMU DARI SCAN -->
+    <div class="modal-overlay" id="modalScan">
+        <div class="modal-card">
+            <h3 id="scannedName">Nama Siswa</h3>
+            <p id="scannedClass">Kelas: -</p>
+            <div class="modal-actions">
+                <button class="btn-modal btn-jemput" onclick="confirmScanStatus('Dijemput')">Dijemput</button>
+                <button class="btn-modal btn-sendiri" onclick="confirmScanStatus('Pulang Sendiri')">Pulang Sendiri</button>
+                <button class="btn-modal" style="background:#8e8e93;" onclick="closeModal()">Batal</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby94nFin-1KeneQUJ_iiOn9kJkceUKIp41ipygKzAZmaHK-qPcyNXfznR30_-xogI7Ccw/exec";
 
         let daftarSiswa = [];
+        let html5QrcodeScanner = null;
+        let selectedStudentFromScan = null;
         const todayStr = new Date().toLocaleDateString('id-ID');
 
         const today = new Date();
@@ -191,6 +269,8 @@
 
         function setPulang(id, status) {
             const siswa = daftarSiswa.find(s => s.id === id);
+            if (!siswa) return;
+
             const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
             
             siswa.status = status;
@@ -210,6 +290,71 @@
                     waktu: siswa.waktu
                 })
             });
+        }
+
+        /* --- LOGIKA SCANNER BARCODE / QR --- */
+        function toggleScanner() {
+            const container = document.getElementById('scanner-container');
+            if (container.style.display === 'block') {
+                stopScanner();
+            } else {
+                container.style.display = 'block';
+                startScanner();
+            }
+        }
+
+        function startScanner() {
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 200, height: 200 } },
+                onScanSuccess
+            ).catch(err => {
+                alert("Kamera tidak dapat diakses. Pastikan izin kamera aktif.");
+                stopScanner();
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('scanner-container').style.display = 'none';
+                }).catch(() => {
+                    document.getElementById('scanner-container').style.display = 'none';
+                });
+            } else {
+                document.getElementById('scanner-container').style.display = 'none';
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            const query = decodedText.trim().toLowerCase();
+            const found = daftarSiswa.find(s => s.nama.toLowerCase() === query || s.id.toString() === query);
+
+            if (found) {
+                selectedStudentFromScan = found;
+                document.getElementById('scannedName').innerText = found.nama;
+                document.getElementById('scannedClass').innerText = `Kelas: ${found.kelas} | Status: ${found.status}`;
+                document.getElementById('modalScan').style.display = 'flex';
+                
+                if (navigator.vibrate) navigator.vibrate(200);
+            } else {
+                alert(`Siswa dengan QR/Barcode "${decodedText}" tidak ditemukan.`);
+            }
+        }
+
+        function confirmScanStatus(status) {
+            if (selectedStudentFromScan) {
+                setPulang(selectedStudentFromScan.id, status);
+                closeModal();
+                document.getElementById('searchNama').value = selectedStudentFromScan.nama;
+                renderSiswa();
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modalScan').style.display = 'none';
+            selectedStudentFromScan = null;
         }
 
         loadSiswa();
