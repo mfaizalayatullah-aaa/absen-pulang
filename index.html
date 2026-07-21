@@ -6,23 +6,40 @@
     <title>Absen Pulang Sekolah</title>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #f0f2f5; margin: 0; padding: 12px; }
-        .header { background: #007aff; color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
-        .header h2 { margin: 0; font-size: 1.2rem; }
-        .header p { margin: 5px 0 0 0; font-size: 0.85rem; opacity: 0.9; }
-        .card { background: white; padding: 12px; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        select, input { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; }
-        .student-card { display: flex; flex-direction: column; gap: 8px; }
-        .student-name { font-weight: bold; font-size: 1rem; color: #1c1e21; }
-        .btn-group { display: flex; gap: 6px; }
-        .btn { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; font-size: 0.85rem; text-align: center; text-decoration: none; }
-        .btn-jemput { background: #34c759; }
-        .btn-sendiri { background: #007aff; }
-        .btn-wa { background: #25d366; margin-top: 5px; display: block; text-align: center; }
-        .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        body { background: #f0f2f5; margin: 0; padding: 10px; }
+        .header { background: #007aff; color: white; padding: 12px; border-radius: 10px; text-align: center; margin-bottom: 10px; }
+        .header h2 { margin: 0; font-size: 1.1rem; }
+        .header p { margin: 3px 0 0 0; font-size: 0.8rem; opacity: 0.9; }
+        .card-filter { background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        select, input { width: 100%; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
+        select:last-child, input:last-child { margin-bottom: 0; }
+        
+        .student-item { 
+            background: white; 
+            padding: 10px 12px; 
+            border-radius: 8px; 
+            margin-bottom: 8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .student-info { flex: 1; min-width: 0; }
+        .student-name { font-weight: bold; font-size: 0.95rem; color: #1c1e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .class-tag { color: #007aff; font-weight: bold; margin-right: 4px; }
+        
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-top: 3px; }
         .badge-belum { background: #ffe3e3; color: #d63031; }
         .badge-sudah { background: #e3faf2; color: #08a10b; }
-        #loading { text-align: center; padding: 20px; font-weight: bold; color: #666; }
+
+        .btn-group { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+        .btn { padding: 6px 10px; border: none; border-radius: 5px; font-weight: bold; color: white; cursor: pointer; font-size: 0.78rem; text-align: center; text-decoration: none; }
+        .btn-jemput { background: #34c759; }
+        .btn-sendiri { background: #007aff; }
+        .btn-wa { background: #25d366; }
+        
+        #loading { text-align: center; padding: 15px; font-weight: bold; color: #666; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -32,51 +49,71 @@
         <p id="tglHariIni"></p>
     </div>
 
-    <div class="card">
-        <!-- DROPDOWN KELAS OTOMATIS -->
+    <div class="card-filter">
         <select id="filterKelas" onchange="renderSiswa()">
             <option value="Semua">-- Semua Kelas --</option>
         </select>
-        <!-- SEARCH NAMA -->
         <input type="text" id="searchNama" onkeyup="renderSiswa()" placeholder="🔍 Cari nama anak...">
     </div>
 
-    <div id="loading">⏳ Memuat data siswa dari Google Sheet...</div>
+    <div id="loading">⏳ Memuat data & status kepulangan...</div>
     <div id="containerSiswa"></div>
 
     <script>
-        // PASTE URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxGqjdddY8WmrWBZaPHxRRrDoEt_5hQSRuXOGr4GJaTVAkWA4vZVSGDYvpyG8X_IEgOhA/exec";
 
         let daftarSiswa = [];
+        const todayStr = new Date().toLocaleDateString('id-ID');
 
-        // TANGGAL HARI INI
         const today = new Date();
         document.getElementById('tglHariIni').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-        // AMBIL DATA SISWA DARI GOOGLE SHEET
         async function loadSiswa() {
             try {
+                // 1. Cek penyimpanan lokal HP dulu agar super cepat
+                const savedLocal = localStorage.getItem('absen_pulang_' + todayStr);
+                let localData = savedLocal ? JSON.parse(savedLocal) : null;
+
                 const response = await fetch(SCRIPT_URL);
                 const data = await response.json();
                 
-                daftarSiswa = data.map(s => ({
-                    ...s,
-                    status: "Belum Pulang",
-                    waktu: "-"
-                }));
+                daftarSiswa = data.map(s => {
+                    // Gabungkan data dari Google Sheet dan memori lokal HP
+                    let localItem = localData ? localData.find(l => l.id === s.id) : null;
+                    return {
+                        ...s,
+                        status: (localItem && localItem.status !== "Belum Pulang") ? localItem.status : (s.status || "Belum Pulang"),
+                        waktu: (localItem && localItem.waktu !== "-") ? localItem.waktu : (s.waktu || "-")
+                    };
+                });
+
+                // Simpan versi gabungan ke memori lokal
+                saveToLocal();
 
                 populateDropdownKelas();
                 document.getElementById('loading').style.display = 'none';
                 renderSiswa();
             } catch (error) {
-                document.getElementById('loading').innerText = "❌ Gagal memuat data. Periksa URL Apps Script Anda.";
+                // Jika offline/gagal koneksi, gunakan data lokal HP jika ada
+                const savedLocal = localStorage.getItem('absen_pulang_' + todayStr);
+                if (savedLocal) {
+                    daftarSiswa = JSON.parse(savedLocal);
+                    populateDropdownKelas();
+                    document.getElementById('loading').style.display = 'none';
+                    renderSiswa();
+                } else {
+                    document.getElementById('loading').innerText = "❌ Gagal memuat data. Periksa koneksi atau URL Apps Script Anda.";
+                }
             }
         }
 
-        // BUAT DROPDOWN KELAS OTOMATIS BERDASARKAN DATA SHEET
+        function saveToLocal() {
+            localStorage.setItem('absen_pulang_' + todayStr, JSON.stringify(daftarSiswa));
+        }
+
         function populateDropdownKelas() {
             const select = document.getElementById('filterKelas');
+            select.innerHTML = '<option value="Semua">-- Semua Kelas --</option>';
             const kelasList = [...new Set(daftarSiswa.map(s => s.kelas))];
             
             kelasList.forEach(k => {
@@ -99,30 +136,33 @@
             );
 
             if (filtered.length === 0 && daftarSiswa.length > 0) {
-                container.innerHTML = '<div class="card" style="text-align:center;">Data siswa tidak ditemukan.</div>';
+                container.innerHTML = '<div class="card-filter" style="text-align:center; font-size: 0.9rem;">Data siswa tidak ditemukan.</div>';
                 return;
             }
 
             filtered.forEach(s => {
                 const isPulang = s.status !== "Belum Pulang";
-                const pesanWA = `Yth. Orang Tua dari *${s.nama}*,\n\nInfromasi sekolah bahwa ananda telah *${s.status}* pada jam ${s.waktu}.\n\nTerima kasih.`;
+                const pesanWA = `Yth. Orang Tua dari *${s.nama}*,\n\nInformasi sekolah bahwa ananda telah *${s.status}* pada jam ${s.waktu}.\n\nTerima kasih.`;
 
                 container.innerHTML += `
-                    <div class="card student-card">
-                        <div>
-                            <span class="student-name">${s.nama}</span> (${s.kelas})
-                            <br>
-                            <span class="badge ${isPulang ? 'badge-sudah' : 'badge-belum'}">${s.status} ${isPulang ? '('+s.waktu+')' : ''}</span>
+                    <div class="student-item">
+                        <div class="student-info">
+                            <div class="student-name">
+                                <span class="class-tag">${s.kelas}</span> - ${s.nama}
+                            </div>
+                            <span class="badge ${isPulang ? 'badge-sudah' : 'badge-belum'}">
+                                ${s.status} ${isPulang ? '('+s.waktu+')' : ''}
+                            </span>
                         </div>
                         <div class="btn-group">
-                            <button class="btn btn-jemput" onclick="setPulang(${s.id}, 'Dijemput')">Dijemput</button>
-                            <button class="btn btn-sendiri" onclick="setPulang(${s.id}, 'Pulang Sendiri')">Pulang Sendiri</button>
+                            <button class="btn btn-jemput" onclick="setPulang(${s.id}, 'Dijemput')">Jemput</button>
+                            <button class="btn btn-sendiri" onclick="setPulang(${s.id}, 'Pulang Sendiri')">Sendiri</button>
+                            ${isPulang ? `
+                                <a href="https://wa.me/${s.hp}?text=${encodeURIComponent(pesanWA)}" target="_blank" class="btn btn-wa" title="Kirim WA">
+                                    📱 WA
+                                </a>
+                            ` : ''}
                         </div>
-                        ${isPulang ? `
-                            <a href="https://wa.me/${s.hp}?text=${encodeURIComponent(pesanWA)}" target="_blank" class="btn btn-wa">
-                                📱 Kirim Notifikasi WA
-                            </a>
-                        ` : ''}
                     </div>
                 `;
             });
@@ -135,23 +175,24 @@
             siswa.status = status;
             siswa.waktu = jam + " WIB";
 
+            // Simpan langsung ke penyimpanan memori lokal HP
+            saveToLocal();
+            renderSiswa();
+
             // Simpan ke Google Sheet (RekapPulang)
             fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 body: JSON.stringify({
-                    tanggal: new Date().toLocaleDateString('id-ID'),
+                    tanggal: todayStr,
                     nama: siswa.nama,
                     kelas: siswa.kelas,
                     status: status,
                     waktu: siswa.waktu
                 })
             });
-
-            renderSiswa();
         }
 
-        // Jalankan pengambilan data saat halaman dibuka
         loadSiswa();
     </script>
 </body>
