@@ -17,7 +17,7 @@
         select, input { width: 100%; padding: 7px 9px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; }
         select:last-child, input:last-child { margin-bottom: 0; }
         
-        /* TOMBOL SCANNER KAMERA */
+        /* TOMBOL KAMERA SCANNER */
         .btn-scan-trigger {
             width: 100%;
             padding: 9px;
@@ -117,6 +117,26 @@
         .btn-wa { background: #25d366; padding: 5px 7px; font-size: 0.85rem; }
         
         #loading { text-align: center; padding: 15px; font-weight: bold; color: #666; font-size: 0.85rem; }
+
+        /* FOOTER MODERN & RAPI */
+        .app-footer {
+            text-align: center;
+            padding: 15px 10px 25px 10px;
+            color: #8e8e93;
+            font-size: 0.72rem;
+            margin-top: 15px;
+            border-top: 1px solid #e5e5ea;
+        }
+        .version-tag {
+            background: #e5e5ea;
+            color: #48484a;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.68rem;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +181,13 @@
         </div>
     </div>
 
+    <!-- FOOTER APLIKASI -->
+    <div class="app-footer">
+        <span class="version-tag">v1.2.0</span>
+        <div>© <span id="copyrightYear"></span> SD NEGERI UTAMA. All Rights Reserved.</div>
+        <div style="opacity: 0.8; margin-top: 2px;">Sistem Absensi Kepulangan Siswa</div>
+    </div>
+
     <script>
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby94nFin-1KeneQUJ_iiOn9kJkceUKIp41ipygKzAZmaHK-qPcyNXfznR30_-xogI7Ccw/exec";
 
@@ -169,8 +196,10 @@
         let selectedStudentFromScan = null;
         const todayStr = new Date().toLocaleDateString('id-ID');
 
+        // TANGGAL & TAHUN OTOMATIS
         const today = new Date();
         document.getElementById('tglHariIni').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('copyrightYear').innerText = today.getFullYear();
 
         async function loadSiswa() {
             try {
