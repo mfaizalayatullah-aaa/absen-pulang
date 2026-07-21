@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absen Pulang Sekolah</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #f0f2f5; margin: 0; padding: 12px; }
+        .header { background: #007aff; color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
+        .header h2 { margin: 0; font-size: 1.2rem; }
+        .header p { margin: 5px 0 0 0; font-size: 0.85rem; opacity: 0.9; }
+        .card { background: white; padding: 12px; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        select, input { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; }
+        .student-card { display: flex; flex-direction: column; gap: 8px; }
+        .student-name { font-weight: bold; font-size: 1rem; color: #1c1e21; }
+        .btn-group { display: flex; gap: 6px; }
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; font-size: 0.85rem; text-align: center; text-decoration: none; }
+        .btn-jemput { background: #34c759; }
+        .btn-sendiri { background: #007aff; }
+        .btn-wa { background: #25d366; margin-top: 5px; display: block; text-align: center; }
+        .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        .badge-belum { background: #ffe3e3; color: #d63031; }
+        .badge-sudah { background: #e3faf2; color: #08a10b; }
+        #loading { text-align: center; padding: 20px; font-weight: bold; color: #666; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>SD NEGERI UTAMA</h2>
+        <p id="tglHariIni"></p>
+    </div>
+
+    <div class="card">
+        <!-- DROPDOWN KELAS OTOMATIS -->
+        <select id="filterKelas" onchange="renderSiswa()">
+            <option value="Semua">-- Semua Kelas --</option>
+        </select>
+        <!-- SEARCH NAMA -->
+        <input type="text" id="searchNama" onkeyup="renderSiswa()" placeholder="🔍 Cari nama anak...">
+    </div>
+
+    <div id="loading">⏳ Memuat data siswa dari Google Sheet...</div>
+    <div id="containerSiswa"></div>
+
+    <script>
+        // PASTE URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
+        const SCRIPT_URL = "TEMPEL_URL_WEB_APP_ANDA_DI_SINI";
+
+        let daftarSiswa = [];
+
+        // TANGGAL HARI INI
+        const today = new Date();
+        document.getElementById('tglHariIni').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        // AMBIL DATA SISWA DARI GOOGLE SHEET
+        async function loadSiswa() {
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const data = await response.json();
+                
+                daftarSiswa = data.map(s => ({
+                    ...s,
+                    status: "Belum Pulang",
+                    waktu: "-"
+                }));
+
+                populateDropdownKelas();
+                document.getElementById('loading').style.display = 'none';
+                renderSiswa();
+            } catch (error) {
+                document.getElementById('loading').innerText = "❌ Gagal memuat data. Periksa URL Apps Script Anda.";
+            }
+        }
+
+        // BUAT DROPDOWN KELAS OTOMATIS BERDASARKAN DATA SHEET
+        function populateDropdownKelas() {
+            const select = document.getElementById('filterKelas');
+            const kelasList = [...new Set(daftarSiswa.map(s => s.kelas))];
+            
+            kelasList.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.innerText = `Kelas ${k}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderSiswa() {
+            const kelas = document.getElementById('filterKelas').value;
+            const search = document.getElementById('searchNama').value.toLowerCase();
+            const container = document.getElementById('containerSiswa');
+            container.innerHTML = '';
+
+            const filtered = daftarSiswa.filter(s => 
+                (kelas === 'Semua' || s.kelas === kelas) && 
+                s.nama.toLowerCase().includes(search)
+            );
+
+            if (filtered.length === 0 && daftarSiswa.length > 0) {
+                container.innerHTML = '<div class="card" style="text-align:center;">Data siswa tidak ditemukan.</div>';
+                return;
+            }
+
+            filtered.forEach(s => {
+                const isPulang = s.status !== "Belum Pulang";
+                const pesanWA = `Yth. Orang Tua dari *${s.nama}*,\n\nInfromasi sekolah bahwa ananda telah *${s.status}* pada jam ${s.waktu}.\n\nTerima kasih.`;
+
+                container.innerHTML += `
+                    <div class="card student-card">
+                        <div>
+                            <span class="student-name">${s.nama}</span> (${s.kelas})
+                            <br>
+                            <span class="badge ${isPulang ? 'badge-sudah' : 'badge-belum'}">${s.status} ${isPulang ? '('+s.waktu+')' : ''}</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-jemput" onclick="setPulang(${s.id}, 'Dijemput')">Dijemput</button>
+                            <button class="btn btn-sendiri" onclick="setPulang(${s.id}, 'Pulang Sendiri')">Pulang Sendiri</button>
+                        </div>
+                        ${isPulang ? `
+                            <a href="https://wa.me/${s.hp}?text=${encodeURIComponent(pesanWA)}" target="_blank" class="btn btn-wa">
+                                📱 Kirim Notifikasi WA
+                            </a>
+                        ` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        function setPulang(id, status) {
+            const siswa = daftarSiswa.find(s => s.id === id);
+            const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            
+            siswa.status = status;
+            siswa.waktu = jam + " WIB";
+
+            // Simpan ke Google Sheet (RekapPulang)
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({
+                    tanggal: new Date().toLocaleDateString('id-ID'),
+                    nama: siswa.nama,
+                    kelas: siswa.kelas,
+                    status: status,
+                    waktu: siswa.waktu
+                })
+            });
+
+            renderSiswa();
+        }
+
+        // Jalankan pengambilan data saat halaman dibuka
+        loadSiswa();
+    </script>
+</body>
+</html>
